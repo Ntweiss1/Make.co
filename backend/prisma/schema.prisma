@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  password              String?
+  firstName             String?
+  lastName              String?
+  avatar                String?
+  verified              Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  googleAccounts        GoogleAuth[]
+  products              Product[]
+  storefronts           Storefront[]
+  preOrders             PreOrder[]
+  orders                Order[] @relation("buyer")
+  analytics             Analytics[]
+  integrations          Integration[]
+  emailNotifications    EmailNotification[]
+}
+
+model GoogleAuth {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  googleId  String  @unique
+  email     String
+  name      String?
+  picture   String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, googleId])
+}
+
+model Product {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name                  String
+  description           String    @db.Text
+  category              String
+  images                String[]
+  thumbnail             String?
+  sku                   String?
+  
+  aiGeneratedDescription Boolean @default(false)
+  aiGeneratedImages     Boolean @default(false)
+  aiPrompt              String?   @db.Text
+  
+  basePrice             Decimal   @db.Decimal(10, 2)
+  cost                  Decimal?  @db.Decimal(10, 2)
+  
+  specifications        Json?
+  weight                Decimal?  @db.Decimal(10, 2)
+  dimensions            Json?
+  
+  status                String    @default("draft")
+  published             Boolean   @default(false)
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  preOrders             PreOrder[]
+  storefrontProducts    StorefrontProduct[]
+  analytics             Analytics[]
+}
+
+model Storefront {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name                  String
+  slug                  String    @unique
+  description           String?   @db.Text
+  
+  logo                  String?
+  banner                String?
+  theme                 String    @default("default")
+  colors                Json?
+  customCSS             String?   @db.Text
+  
+  published             Boolean   @default(false)
+  customDomain          String?   @unique
+  social                Json?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  products              StorefrontProduct[]
+  preOrders             PreOrder[]
+  analytics             Analytics[]
+}
+
+model StorefrontProduct {
+  id            String @id @default(cuid())
+  storefrontId  String
+  storefront    Storefront @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  featured      Boolean @default(false)
+  order         Int     @default(0)
+  
+  @@unique([storefrontId, productId])
+}
+
+model PreOrder {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId             String
+  product               Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storefrontId          String
+  storefront            Storefront @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  
+  name                  String
+  description           String?   @db.Text
+  
+  tiers                 PreOrderTier[]
+  
+  startDate             DateTime
+  endDate               DateTime
+  productionStartDate   DateTime?
+  shippingDate          DateTime?
+  
+  targetQuantity        Int?
+  currentQuantity       Int       @default(0)
+  limitPerCustomer      Int?      @default(1)
+  
+  status                String    @default("planning")
+  published             Boolean   @default(false)
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  orders                Order[]
+}
+
+model PreOrderTier {
+  id                    String    @id @default(cuid())
+  preOrderId            String
+  preOrder              PreOrder  @relation(fields: [preOrderId], references: [id], onDelete: Cascade)
+  
+  name                  String
+  price                 Decimal   @db.Decimal(10, 2)
+  quantity              Int?
+  sold                  Int       @default(0)
+  description           String?
+  order                 Int       @default(0)
+  
+  createdAt             DateTime  @default(now())
+}
+
+model Order {
+  id                    String    @id @default(cuid())
+  
+  buyerId               String
+  buyer                 User      @relation("buyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  customerEmail         String
+  customerName          String
+  customerPhone         String?
+  
+  preOrderId            String
+  preOrder              PreOrder  @relation(fields: [preOrderId], references: [id], onDelete: Cascade)
+  preOrderTierId        String?
+  
+  quantity              Int
+  
+  unitPrice             Decimal   @db.Decimal(10, 2)
+  subtotal              Decimal   @db.Decimal(10, 2)
+  tax                   Decimal   @db.Decimal(10, 2) @default(0)
+  shipping              Decimal   @db.Decimal(10, 2) @default(0)
+  total                 Decimal   @db.Decimal(10, 2)
+  
+  paymentMethod         String
+  stripePaymentId       String?   @unique
+  paymentStatus         String    @default("pending")
+  
+  fulfillmentStatus     String    @default("pending")
+  trackingNumber        String?
+  
+  shippingAddress       Json?
+  billingAddress        Json?
+  
+  notes                 String?   @db.Text
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Analytics {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  storefrontId          String?
+  storefront            Storefront? @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  productId             String?
+  product               Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  eventType             String
+  views                 Int       @default(0)
+  clicks                Int       @default(0)
+  conversions           Int       @default(0)
+  revenue               Decimal   @db.Decimal(10, 2) @default(0)
+  
+  date                  DateTime  @default(now())
+  
+  createdAt             DateTime  @default(now())
+  
+  @@index([userId, date])
+  @@index([storefrontId])
+  @@index([productId])
+}
+
+model Integration {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type                  String
+  name                  String
+  description           String?
+  
+  config                Json
+  apiKey                String?
+  isActive              Boolean   @default(true)
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model EmailNotification {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type                  String
+  recipient             String
+  subject               String
+  body                  String    @db.Text
+  
+  sent                  Boolean   @default(false)
+  sentAt                DateTime?
+  
+  createdAt             DateTime  @default(now())
+}
